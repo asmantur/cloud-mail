@@ -1,0 +1,54 @@
+name: Sync upstream Cloud Mail
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'asmantur/cloud-mail'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check and merge upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags https://github.com/maillab/cloud-mail.git refs/heads/main
+          upstream=$(git rev-parse FETCH_HEAD)
+          if git merge-base --is-ancestor "$upstream" HEAD; then
+            echo "Already synced with upstream $upstream." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          base=$(git merge-base HEAD "$upstream")
+          review_paths=(mail-worker/src/init mail-worker/src/entity mail-worker/wrangler.toml
+                        mail-worker/migrations ':(glob)**/*.sql' .github/workflows)
+          changed=$(git diff --name-only "$base" "$upstream" -- "${review_paths[@]}")
+          if [[ -n "$changed" ]]; then
+            printf 'Manual review required before deployment. Changed paths:\n\n```\n%s\n```\n' "$changed" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Review upstream database, deployment, or workflow changes before syncing."
+            exit 1
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git merge --no-edit "$upstream"; then
+            echo "Merge conflict. Production main was not updated." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          git push origin HEAD:refs/heads/main
+          echo "Merged upstream $upstream into production main." >> "$GITHUB_STEP_SUMMARY"
