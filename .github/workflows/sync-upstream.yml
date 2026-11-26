@@ -2,7 +2,7 @@ name: Sync upstream Cloud Mail
 
 on:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 0 * * *'
   workflow_dispatch:
 
 permissions:
@@ -18,12 +18,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Check the 45-day schedule
+        id: schedule
+        shell: bash
+        run: |
+          days=$(( ($(date -u +%s) - $(date -u -d '2026-11-26' +%s)) / 86400 ))
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch || $((days % 45)) == 0 ]]; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.schedule.outputs.due == 'true'
         with:
           ref: main
           fetch-depth: 0
 
       - name: Check and merge upstream
+        if: steps.schedule.outputs.due == 'true'
         shell: bash
         run: |
           set -euo pipefail
