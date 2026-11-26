@@ -6,14 +6,12 @@ keep_vars = true
 [observability]
 enabled = true
 
-#[[d1_databases]]
-#binding = "db"			# D1 binding name; do not change
-#database_name = ""		# D1 database name
-#database_id = ""		# D1 database id
+[[d1_databases]]
+binding = "db"
+database_name = "cloudmail"
 
-#[[kv_namespaces]]
-#binding = "kv"			# KV binding name; do not change
-#id = ""					# KV namespace id
+[[kv_namespaces]]
+binding = "kv"
 
 #[[r2_buckets]]
 #binding = "r2"			# R2 binding name; do not change
